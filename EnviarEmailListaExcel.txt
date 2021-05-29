@@ -1,0 +1,66 @@
+/# Flow para envio de e-mail a partir de uma planilha
+Autor: Marcelo Arimizu
+Data: 28/05/2021#/
+SET vPlanilhaOrigem TO $'''C:\\TEMP\\PLANILHA_ORIGEM.xlsx'''
+/# --------------------------------------------------------------------------------------------------
+Defina o nome do e-mail para envio a partir do outlook
+--------------------------------------------------------------------------------------------------#/
+SET vContaOutlook TO $'''youremail@here.com'''
+/# --------------------------------------------------------------------------------------------------
+Defina o nome da planilha com os dados
+--------------------------------------------------------------------------------------------------#/
+SET vExecutou TO $'''False'''
+SET vMensagemStatus TO $'''------'''
+BLOCK ABRIR_PLANILHA
+ON BLOCK ERROR
+
+END
+    Excel.LaunchAndOpen Path: vPlanilhaOrigem Visible: True ReadOnly: False LoadAddInsAndMacros: False Instance=> ExcelInstance
+    Excel.GetFirstFreeColumnRow Instance: ExcelInstance FirstFreeColumn=> FirstFreeColumn FirstFreeRow=> FirstFreeRow
+    Excel.ReadCells Instance: ExcelInstance StartColumn: 1 StartRow: 1 EndColumn: FirstFreeColumn EndRow: FirstFreeRow ReadAsText: True FirstLineIsHeader: True RangeValue=> ExcelData
+    BLOCK OUTLOOK
+ON BLOCK ERROR
+
+END
+        Outlook.Launch Instance=> OutlookInstance
+        SET vCount TO 1
+        LOOP FOREACH CurrentItem IN ExcelData
+            Variables.IncreaseVariable Value: vCount IncrementValue: 1 IncreasedValue=> vCount
+            SET vEmail TO CurrentItem['E-MAIL']
+            SET vTexto TO CurrentItem['TEXTO']
+            SET vCodigo TO CurrentItem['CÓDIGO']
+            BLOCK ENVIAR_EMAIL
+ON BLOCK ERROR
+    NEXT ACTION
+END
+                IF IsNotEmpty(vEmail) THEN
+                    Outlook.SendEmail Instance: OutlookInstance Account: vContaOutlook SendTo: vEmail Subject: vTexto Body: vCodigo IsBodyHtml: False
+                    ERROR => LastError
+                    IF IsNotEmpty(LastError.Message) THEN
+                        SET vMensagemStatus TO LastError.Message
+                    ELSE
+                        SET vMensagemStatus TO $'''E-mail enviado com sucesso!'''
+                    END
+                    Excel.WriteCell Instance: ExcelInstance Value: vMensagemStatus Column: 4 Row: vCount
+                END
+            END
+        END
+    END
+    Outlook.Close Instance: OutlookInstance
+    Excel.CloseAndSave Instance: ExcelInstance
+    SET vExecutou TO $'''True'''
+END
+IF vExecutou = $'''False''' THEN
+    ERROR => LastError
+    Display.ShowMessageWithTimeout Title: $'''Atenção''' Message: $'''Houve um problem na execução.
+
+Mensagem retornada do PowerAutomate: %LastError.Message%
+
+Possíveis soluções:
+
+Por favor verifique:
+
+A planilha MS-EXCEL.
+Sua conta no outlook.
+''' Icon: Display.Icon.Warning Buttons: Display.Buttons.OK DefaultButton: Display.DefaultButton.Button1 IsTopMost: False Timeout: 10 ButtonPressed=> ButtonPressed
+END
